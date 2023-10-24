@@ -3,6 +3,9 @@ from . import models
 
 
 class PostSerializer(serializers.ModelSerializer):
+    username = serializers.ReadOnlyField(source='user.username')
+    user_id = serializers.ReadOnlyField(source='user.id')
+
     class Meta:
         model = models.Post
-        fields = ['id', 'title', 'body', 'user', 'created_at']
+        fields = ['id', 'title', 'body', 'username', 'user_id', 'created_at']
