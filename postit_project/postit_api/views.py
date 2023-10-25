@@ -4,6 +4,40 @@ from rest_framework.validators import ValidationError
 from . import models, serializers
 
 
+class PostLike(generics.CreateAPIView):
+    serializer_class = serializers.PostLikeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        post = models.Post.objects.get(pk=self.kwargs['pk'])
+        return models.PostLike.objects.filter(post=post, user=user)
+    
+    def perform_create(self, serializer):
+        if self.get_queryset().exists():
+            raise ValidationError('You can like this post only once.')
+        user = self.request.user
+        post = models.Post.objects.get(pk=self.kwargs['pk'])
+        serializer.save(post=post, user=user)
+
+
+class CommentLike(generics.CreateAPIView):
+    serializer_class = serializers.CommentLikeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        comment = models.Comment.objects.get(pk=self.kwargs['pk'])
+        return models.CommentLike.objects.filter(comment=comment, user=user)
+
+    def perform_create(self, serializer):
+        if self.get_queryset().exists():
+            raise ValidationError('You can like this comment only once.')
+        user = self.request.user
+        comment = models.Comment.objects.get(pk=self.kwargs['pk'])
+        serializer.save(comment=comment, user=user)
+
+
 class PostList(generics.ListCreateAPIView):
     queryset = models.Post.objects.all()
     serializer_class = serializers.PostSerializer
