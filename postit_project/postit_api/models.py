@@ -21,6 +21,7 @@ class TimedUserModel(models.Model):
 class Post(TimedUserModel):
     title = models.CharField(_("title"), max_length=200)
     body = models.TextField(_("body"), max_length=5000)
+    image = models.ImageField(_("image"), upload_to='posts/img', null=True, blank=True)
 
     def __str__(self) -> str:
         return f"{self.title}"
