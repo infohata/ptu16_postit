@@ -1,7 +1,16 @@
+from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from rest_framework import generics, permissions, mixins, response, status
 from rest_framework.validators import ValidationError
 from . import models, serializers
+
+User = get_user_model()
+
+
+class UserCreate(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = serializers.UserSerializer
+    permission_classes = [permissions.AllowAny]
 
 
 class PostLike(generics.CreateAPIView, mixins.DestroyModelMixin):
