@@ -21,7 +21,7 @@ def login_window(main_window: sg.Window) -> (str, str|None):
             result = api.login(values['-USERNAME-'], values['-PASSWORD-'])
             if result and 'token' in result:
                 api_token = result['token']
-                sg.popup_ok('Login Successful')
+                sg.popup_auto_close('Login Successful', auto_close_duration=1)
                 break
             else:
                 reasons = []
@@ -40,11 +40,13 @@ def handle_login_logout(window: sg.Window, username: str, api_token: str|None):
         username = ''
         window['-LOG-IN-OUT-'].update('Login')
         window['-USERNAME-'].update('')
+        window['-LIKE-POST-'].update(disabled=True)
     else:
         username, api_token = login_window(window)
         if api_token:
             window['-USERNAME-'].update(username)
             window['-LOG-IN-OUT-'].update('Logout')
+            window['-LIKE-POST-'].update(disabled=False)
     return username, api_token
 
 def handle_post_selection(window:sg.Window, post: api.Post):
@@ -52,6 +54,24 @@ def handle_post_selection(window:sg.Window, post: api.Post):
     window['-POST-BODY-'].update(post.body)
     window['-POST-OWNER-'].update(post.username)
     window['-POST-CREATED-'].update(post.created_at)
+    window['-POST-LIKES-'].update(f'\u2665 {post.likes_count}')
+
+def update_posts(window:sg.Window, post=None):
+    posts = api.get_posts()
+    window['-POSTS-'].update(posts)
+    post_dict = api.server_get(f'post/{post.id}')
+    if post_dict:
+        post = api.Post(**post_dict)
+        handle_post_selection(window, post)
+
+def handle_like(window:sg.Window, post:api.Post, api_token:str):
+    result, status = api.like_post(post.id, api_token)
+    print(status)
+    if status >= 200 and status < 400:
+        sg.popup_auto_close('Thank you!', auto_close_duration=1)
+    else:
+        sg.popup_error(result[0])
+    update_posts(window, post)
 
 def main_window(username='', api_token=None) -> None:
     post_list_layout = sg.Column(
@@ -63,8 +83,10 @@ def main_window(username='', api_token=None) -> None:
         [
             [sg.Text(text='', key='-POST-TITLE-', size=(50, 1), font=(None, 20)),],
             [sg.Text(text='', key='-POST-BODY-', size=(80, 8)),],
-            [sg.Text(text='', key='-POST-OWNER-', size=(40, 1)),
-             sg.Text(text='', key='-POST-CREATED-', size=(40, 1)),],
+            [sg.Text(text='', key='-POST-LIKES-', size=(10, 1)),
+             sg.Button('\u2665', key='-LIKE-POST-', disabled=True),
+             sg.Text(text='', key='-POST-OWNER-', size=(30, 1)),
+             sg.Text(text='', key='-POST-CREATED-', size=(30, 1)),],
         ]
     )
     layout = [
@@ -81,5 +103,7 @@ def main_window(username='', api_token=None) -> None:
             username, api_token = handle_login_logout(window, username, api_token)
         if event == '-POSTS-':
             handle_post_selection(window, values['-POSTS-'][0])
+        if event == '-LIKE-POST-':
+            handle_like(window, values['-POSTS-'][0], api_token)
 
 main_window()

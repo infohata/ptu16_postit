@@ -1,6 +1,7 @@
 import requests
 import json
 import config
+from typing import Any
 
 
 class Post:
@@ -10,6 +11,7 @@ class Post:
     image = ''
     created_at = None
     username = ''
+    likes_count = 0
 
     def __init__(self, **kwargs) -> None:
         for name, value in kwargs.items():
@@ -33,17 +35,15 @@ def login(username: str, password: str) -> str | None:
         response = requests.request("POST", url, headers=headers, data=data)
     except Exception as e:
         print('Login Error:', e)
-        return None
     else:
         if response.status_code == 200 or response.status_code == 400:
             result = json.loads(response.text)
             return result
         else:
             print(response.text)
-            return None
 
 
-def server_get(path) -> list:
+def server_get(path:str) -> list|dict|None:
     url = f'{config.SERVER_URL}/{path}/'
     headers = config.HEADERS
     try:
@@ -52,9 +52,27 @@ def server_get(path) -> list:
             print(response.status_code)
     except Exception as e:
         print(e)
-        return None
     else:
-        return json.loads(response.text)
+        if response.text:
+            return json.loads(response.text)
+    
+def server_post(path:str, token:str, data={}, method="POST") -> (dict[str, Any], int):
+    url = f'{config.SERVER_URL}/{path}/'
+    headers = config.HEADERS
+    headers['Authorization'] = f'Token {token}'
+    json_data = json.dumps(data)
+    try:
+        response = requests.request(method, url, headers=headers, data=json_data)
+    except Exception as e:
+        print(e)
+        return {}, 499
+    else:
+        print(response.text)
+        if response.text:
+            result = json.loads(response.text)
+        else:
+            result = None
+        return result, response.status_code
 
 def get_posts() -> list[Post]:
     posts_list = server_get('posts')
@@ -62,3 +80,10 @@ def get_posts() -> list[Post]:
     for post_dict in posts_list:
         posts.append(Post(**post_dict))
     return posts
+
+def like_post(post_id:int, token:str):
+    path = f'post/{post_id}/like'
+    like, status = server_post(path, token)
+    if status == 400:
+        like, status = server_post(path, token, method="DELETE")
+    return like, status
