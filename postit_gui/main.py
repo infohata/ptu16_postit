@@ -1,9 +1,6 @@
 import PySimpleGUI as sg
 import postit_api as api
 
-api_token = None
-username = ''
-
 def login_window(main_window: sg.Window) -> (str, str|None):
     api_token = None
     layout = [
@@ -37,6 +34,18 @@ def login_window(main_window: sg.Window) -> (str, str|None):
         window['-USERNAME-'].update('')
     return values['-USERNAME-'], api_token
 
+def handle_login_logout(window: sg.Window, username: str, api_token: str|None):
+    if api_token:
+        api_token = None
+        username = ''
+        window['-LOG-IN-OUT-'].update('Login')
+        window['-USERNAME-'].update('')
+    else:
+        username, api_token = login_window(window)
+        if api_token:
+            window['-USERNAME-'].update(username)
+            window['-LOG-IN-OUT-'].update('Logout')
+    return username, api_token
 
 def handle_post_selection(window:sg.Window, post: api.Post):
     window['-POST-TITLE-'].update(post.title)
@@ -44,7 +53,7 @@ def handle_post_selection(window:sg.Window, post: api.Post):
     window['-POST-OWNER-'].update(post.username)
     window['-POST-CREATED-'].update(post.created_at)
 
-def main_window(api_token: str | None) -> None:
+def main_window(username='', api_token=None) -> None:
     post_list_layout = sg.Column(
         [
             [sg.Listbox(api.get_posts() or [], key='-POSTS-', size=(20, 10), enable_events=True)],
@@ -69,17 +78,8 @@ def main_window(api_token: str | None) -> None:
         if event == sg.WINDOW_CLOSED:
             break
         if event == '-LOG-IN-OUT-':
-            if api_token:
-                api_token = None
-                username = ''
-                window['-LOG-IN-OUT-'].update('Login')
-                window['-USERNAME-'].update('')
-            else:
-                username, api_token = login_window(window)
-                if api_token:
-                    window['-USERNAME-'].update(username)
-                    window['-LOG-IN-OUT-'].update('Logout')
+            username, api_token = handle_login_logout(window, username, api_token)
         if event == '-POSTS-':
             handle_post_selection(window, values['-POSTS-'][0])
 
-main_window(api_token)
+main_window()
