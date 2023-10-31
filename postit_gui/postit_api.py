@@ -6,7 +6,7 @@ from typing import Any
 
 class Post:
     id = 0
-    title = '--UNTITLED--'
+    title = ''
     body = ''
     image = ''
     created_at = None
@@ -48,8 +48,6 @@ def server_get(path:str) -> list|dict|None:
     headers = config.HEADERS
     try:
         response = requests.request("GET", url, headers=headers)
-        if response.status_code != 200:
-            print(response.status_code)
     except Exception as e:
         print(e)
     else:
@@ -67,7 +65,6 @@ def server_post(path:str, token:str, data={}, method="POST") -> (dict[str, Any],
         print(e)
         return {}, 499
     else:
-        print(response.text)
         if response.text:
             result = json.loads(response.text)
         else:
@@ -81,9 +78,17 @@ def get_posts() -> list[Post]:
         posts.append(Post(**post_dict))
     return posts
 
-def like_post(post_id:int, token:str):
+def like_post(post_id:int, token:str) -> (dict[str, int], int):
     path = f'post/{post_id}/like'
     like, status = server_post(path, token)
     if status == 400:
         like, status = server_post(path, token, method="DELETE")
     return like, status
+
+def new_post(token:str, **kwargs) -> (dict[str, Any], int):
+    path = f'posts'
+    new_post, status = server_post(path, token, kwargs)
+    return new_post, status
+
+def update_post(token:str, pk:int, **kwargs) -> (dict[str, Any], int):
+    pass
