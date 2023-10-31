@@ -8,7 +8,7 @@ def save_post(api_token:str, post:api.Post, values:dict[str, Any]) -> (api.Post,
             post_dict, status = api.new_post(api_token, **values)
         else:
             post_dict, status = api.update_post(api_token, post.id, **values)
-        if status == 201:
+        if status >= 200 and status < 400:
             post = api.Post(**post_dict)
             sg.popup_auto_close('Posted. Thank you', auto_close_duration=2)            
         else:
@@ -39,7 +39,7 @@ def post_window(main_window:sg.Window, api_token:str, post=api.Post()) -> api.Po
             break
         if event == '-CONFIRM-POST-':
             post, status = save_post(api_token, post, values)
-            if status == 201:
+            if status >= 200 and status < 400:
                 break
     main_window.un_hide()
     window.close()
@@ -49,6 +49,10 @@ def post_window(main_window:sg.Window, api_token:str, post=api.Post()) -> api.Po
 def handle_new_post(window:sg.Window, api_token:str):
     new_post = post_window(window, api_token)
     update_posts(window, new_post)
+
+def handle_edit_post(window:sg.Window, post:api.Post, api_token:str):
+    updated_post = post_window(window, api_token, post)
+    update_posts(window, updated_post)
 
 def handle_like(window:sg.Window, post:api.Post, api_token:str):
     result, status = api.like_post(post.id, api_token)
@@ -92,12 +96,17 @@ def login_window(main_window: sg.Window) -> (str, str|None):
         window['-USERNAME-'].update('')
     return values['-USERNAME-'], api_token
 
-def handle_post_selection(window:sg.Window, post: api.Post):
+def handle_post_selection(window:sg.Window, post: api.Post, username='') -> api.Post:
     window['-POST-TITLE-'].update(post.title)
     window['-POST-BODY-'].update(post.body)
     window['-POST-OWNER-'].update(post.username)
     window['-POST-CREATED-'].update(post.created_at)
     window['-POST-LIKES-'].update(f'\u2665 {post.likes_count}')
+    if len(username) > 0 and username == post.username:
+        window['-EDIT-POST-'].update(disabled=False)
+    else:
+        window['-EDIT-POST-'].update(disabled=True)
+    return post
 
 def update_posts(window:sg.Window, post=None):
     posts = api.get_posts()
@@ -116,6 +125,7 @@ def handle_login_logout(window: sg.Window, username: str, api_token: str|None):
         window['-USERNAME-'].update('')
         window['-LIKE-POST-'].update(disabled=True)
         window['-NEW-POST-'].update(disabled=True)
+        window['-EDIT-POST-'].update(disabled=True)
     else:
         username, api_token = login_window(window)
         if api_token:
@@ -129,7 +139,8 @@ def main_window(username='', api_token=None) -> None:
     post_list_layout = sg.Column(
         [
             [sg.Listbox(api.get_posts() or [], key='-POSTS-', size=(20, 10), enable_events=True)],
-            [sg.Button('New Post', key='-NEW-POST-', disabled=True)],
+            [sg.Button('New', key='-NEW-POST-', disabled=True), 
+             sg.Button('Edit', key='-EDIT-POST-', disabled=True)],
         ]
     )
     post_detail_layout = sg.Column(
@@ -155,10 +166,12 @@ def main_window(username='', api_token=None) -> None:
         if event == '-LOG-IN-OUT-':
             username, api_token = handle_login_logout(window, username, api_token)
         if event == '-POSTS-':
-            handle_post_selection(window, values['-POSTS-'][0])
+            selected_post = handle_post_selection(window, values['-POSTS-'][0], username)
         if event == '-LIKE-POST-':
-            handle_like(window, values['-POSTS-'][0], api_token)
+            handle_like(window, selected_post, api_token)
         if event == '-NEW-POST-':
             handle_new_post(window, api_token)
+        if event == '-EDIT-POST-':
+            handle_edit_post(window, selected_post, api_token)
 
 main_window()

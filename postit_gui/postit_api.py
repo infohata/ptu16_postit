@@ -86,9 +86,12 @@ def like_post(post_id:int, token:str) -> (dict[str, int], int):
     return like_dict, status
 
 def new_post(token:str, **kwargs) -> (dict[str, Any], int):
-    path = f'posts'
+    path = 'posts'
     post_dict, status = server_post(path, token, kwargs)
     return post_dict, status
 
 def update_post(token:str, pk:int, **kwargs) -> (dict[str, Any], int):
-    pass
+    path = f'post/{pk}'
+    post_dict, status = server_post(path, token, kwargs, "PUT")
+    return post_dict, status
+
