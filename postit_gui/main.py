@@ -1,5 +1,6 @@
 import PySimpleGUI as sg
 import postit_api as api
+import remember_me
 from typing import Any
 
 def popup_error(result: dict|None):
@@ -84,6 +85,7 @@ def login_window(main_window: sg.Window) -> (str, str|None):
          sg.Input('', size=(20, 1), key='-USERNAME-'),],
         [sg.Text('Password:', size=(10, 1)),
          sg.Input('', size=(20, 1), key='-PASSWORD-', password_char='*'),],
+        [sg.Checkbox('Remember me', key='-REMEMBER-ME-', default=True),],
         [sg.Button('Log in', key='-LOGIN-'), 
          sg.Button('Cancel', key='-CANCEL-'),],
     ]
@@ -97,6 +99,10 @@ def login_window(main_window: sg.Window) -> (str, str|None):
             result = api.login(values['-USERNAME-'], values['-PASSWORD-'])
             if result and 'token' in result:
                 api_token = result['token']
+                if values['-REMEMBER-ME-']:
+                    remember_me.save_user(values['-USERNAME-'], api_token)
+                else:
+                    remember_me.forget_me()
                 sg.popup_auto_close('Login Successful', auto_close_duration=1)
                 break
             else:
@@ -113,6 +119,8 @@ def handle_post_selection(window:sg.Window, post: api.Post, username='') -> api.
     window['-POST-OWNER-'].update(post.username)
     window['-POST-CREATED-'].update(post.created_at)
     window['-POST-LIKES-'].update(f'\u2665 {post.likes_count}')
+    if len(username) > 0:
+        window['-LIKE-POST-'].update(disabled=False)
     if len(username) > 0 and username == post.username:
         window['-EDIT-POST-'].update(disabled=False)
         window['-DELETE-POST-'].update(disabled=False)
@@ -121,7 +129,7 @@ def handle_post_selection(window:sg.Window, post: api.Post, username='') -> api.
         window['-DELETE-POST-'].update(disabled=True)
     return post
 
-def update_posts(window:sg.Window, post=None):
+def update_posts(window:sg.Window, post=None) -> api.Post|None:
     posts = api.get_posts()
     window['-POSTS-'].update(posts)
     if post != None:
@@ -151,11 +159,17 @@ def handle_login_logout(window: sg.Window, username: str, api_token: str|None):
     return username, api_token
 
 def main_window(username='', api_token=None) -> None:
+    if api_token != None:
+        login_logout_button_name = 'Logout'
+        disable_user_actions = False
+    else:
+        login_logout_button_name = 'Login'
+        disable_user_actions = True
     post_list_layout = sg.Column(
         [
             [sg.Listbox(api.get_posts() or [], key='-POSTS-', size=(30, 10), enable_events=True)],
             [sg.Button('\u21CA', key='-REFRESH-POSTS-'),
-             sg.Button('+ Add', key='-NEW-POST-', disabled=True), 
+             sg.Button('+ Add', key='-NEW-POST-', disabled=disable_user_actions), 
              sg.Button('\u270F', key='-EDIT-POST-', disabled=True),
              sg.Button('X', key='-DELETE-POST-', disabled=True)],
         ]
@@ -171,8 +185,8 @@ def main_window(username='', api_token=None) -> None:
         ]
     )
     layout = [
-        [sg.Button('Login', key='-LOG-IN-OUT-'), 
-         sg.Text('', key='-USERNAME-'),],
+        [sg.Button(login_logout_button_name, key='-LOG-IN-OUT-'), 
+         sg.Text(username, key='-USERNAME-'),],
         [post_list_layout, post_detail_layout],
     ]
     window = sg.Window('Postit', layout)
@@ -197,4 +211,5 @@ def main_window(username='', api_token=None) -> None:
         if event == '-DELETE-POST-':
             handle_delete_post(window, selected_post, api_token)
 
-main_window()
+username, api_token = remember_me.load_user()
+main_window(username, api_token)
