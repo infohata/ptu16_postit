@@ -2,6 +2,15 @@ import PySimpleGUI as sg
 import postit_api as api
 from typing import Any
 
+def popup_error(result: dict|None):
+    reason = ''
+    if type(result) == dict:
+        reasons = []
+        for name, value in result.items():
+            reasons.append(f" - {name}: {value[0]}.")
+        reason = '\n'.join(reasons)
+    sg.popup_error(f'Error. Try again.\nReason:\n{reason}')
+
 def save_post(api_token:str, post:api.Post, values:dict[str, Any]) -> (api.Post, int):
     if len(values['title']) >= 3 and len(values['body']) >= 10:
         if post.id == 0:
@@ -12,11 +21,7 @@ def save_post(api_token:str, post:api.Post, values:dict[str, Any]) -> (api.Post,
             post = api.Post(**post_dict)
             sg.popup_auto_close('Posted. Thank you', auto_close_duration=2)            
         else:
-            reasons = []
-            for name, value in post_dict.items():
-                reasons.append(f" - {name}: {value[0]}.")
-            reason = '\n'.join(reasons)
-            sg.popup_error(f'Error:\n{reason}')            
+            popup_error(post_dict)
     else:
         sg.popup_error('You must write something more')
     return post, status
@@ -54,6 +59,16 @@ def handle_edit_post(window:sg.Window, post:api.Post, api_token:str):
     updated_post = post_window(window, api_token, post)
     update_posts(window, updated_post)
 
+def handle_delete_post(window:sg.Window, post:api.Post, api_token:str):
+    confirmation = sg.popup_yes_no('Are you sure you want to delete your post?\nYou will lose all your comments and likes.', no_titlebar=True)
+    if confirmation == "Yes":
+        result, status = api.delete_post(api_token, post.id)
+        if status == 204:
+            sg.popup_auto_close('Done.', auto_close_duration=1)
+        else:
+            popup_error(result)
+        update_posts(window)
+
 def handle_like(window:sg.Window, post:api.Post, api_token:str):
     result, status = api.like_post(post.id, api_token)
     if status >= 200 and status < 400:
@@ -85,15 +100,11 @@ def login_window(main_window: sg.Window) -> (str, str|None):
                 sg.popup_auto_close('Login Successful', auto_close_duration=1)
                 break
             else:
-                reasons = []
-                for name, value in result.items():
-                    reasons.append(f" - {name}: {value[0]}.")
-                reason = '\n'.join(reasons)
-                sg.popup_error(f'Error: login failed. Try again. \nReason:\n{reason}')
+                popup_error(result)
+    if not api_token:
+        main_window['-USERNAME-'].update('')
     main_window.un_hide()
     window.close()
-    if not api_token:
-        window['-USERNAME-'].update('')
     return values['-USERNAME-'], api_token
 
 def handle_post_selection(window:sg.Window, post: api.Post, username='') -> api.Post:
@@ -104,8 +115,10 @@ def handle_post_selection(window:sg.Window, post: api.Post, username='') -> api.
     window['-POST-LIKES-'].update(f'\u2665 {post.likes_count}')
     if len(username) > 0 and username == post.username:
         window['-EDIT-POST-'].update(disabled=False)
+        window['-DELETE-POST-'].update(disabled=False)
     else:
         window['-EDIT-POST-'].update(disabled=True)
+        window['-DELETE-POST-'].update(disabled=True)
     return post
 
 def update_posts(window:sg.Window, post=None):
@@ -116,6 +129,7 @@ def update_posts(window:sg.Window, post=None):
         if post_dict:
             selected_post = api.Post(**post_dict)
             handle_post_selection(window, selected_post)
+            return selected_post
 
 def handle_login_logout(window: sg.Window, username: str, api_token: str|None):
     if api_token:
@@ -126,6 +140,7 @@ def handle_login_logout(window: sg.Window, username: str, api_token: str|None):
         window['-LIKE-POST-'].update(disabled=True)
         window['-NEW-POST-'].update(disabled=True)
         window['-EDIT-POST-'].update(disabled=True)
+        window['-DELETE-POST-'].update(disabled=True)
     else:
         username, api_token = login_window(window)
         if api_token:
@@ -138,9 +153,11 @@ def handle_login_logout(window: sg.Window, username: str, api_token: str|None):
 def main_window(username='', api_token=None) -> None:
     post_list_layout = sg.Column(
         [
-            [sg.Listbox(api.get_posts() or [], key='-POSTS-', size=(20, 10), enable_events=True)],
-            [sg.Button('New', key='-NEW-POST-', disabled=True), 
-             sg.Button('Edit', key='-EDIT-POST-', disabled=True)],
+            [sg.Listbox(api.get_posts() or [], key='-POSTS-', size=(30, 10), enable_events=True)],
+            [sg.Button('\u21CA', key='-REFRESH-POSTS-'),
+             sg.Button('+ Add', key='-NEW-POST-', disabled=True), 
+             sg.Button('\u270F', key='-EDIT-POST-', disabled=True),
+             sg.Button('X', key='-DELETE-POST-', disabled=True)],
         ]
     )
     post_detail_layout = sg.Column(
@@ -159,6 +176,7 @@ def main_window(username='', api_token=None) -> None:
         [post_list_layout, post_detail_layout],
     ]
     window = sg.Window('Postit', layout)
+    selected_post = None
     while True:
         event, values = window.read()
         if event == sg.WINDOW_CLOSED:
@@ -166,12 +184,17 @@ def main_window(username='', api_token=None) -> None:
         if event == '-LOG-IN-OUT-':
             username, api_token = handle_login_logout(window, username, api_token)
         if event == '-POSTS-':
-            selected_post = handle_post_selection(window, values['-POSTS-'][0], username)
+            if values['-POSTS-'] and len(values['-POSTS-']) > 0:
+                selected_post = handle_post_selection(window, values['-POSTS-'][0], username)
+        if event == '-REFRESH-POSTS-':
+            selected_post = update_posts(window, selected_post)
         if event == '-LIKE-POST-':
             handle_like(window, selected_post, api_token)
         if event == '-NEW-POST-':
             handle_new_post(window, api_token)
         if event == '-EDIT-POST-':
             handle_edit_post(window, selected_post, api_token)
+        if event == '-DELETE-POST-':
+            handle_delete_post(window, selected_post, api_token)
 
 main_window()

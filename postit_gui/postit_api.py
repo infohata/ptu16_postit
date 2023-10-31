@@ -74,8 +74,9 @@ def server_post(path:str, token:str, data={}, method="POST") -> (dict[str, Any],
 def get_posts() -> list[Post]:
     posts_list = server_get('posts')
     posts = []
-    for post_dict in posts_list:
-        posts.append(Post(**post_dict))
+    if type(posts_list) == list:
+        for post_dict in posts_list:
+            posts.append(Post(**post_dict))
     return posts
 
 def like_post(post_id:int, token:str) -> (dict[str, int], int):
@@ -95,3 +96,7 @@ def update_post(token:str, pk:int, **kwargs) -> (dict[str, Any], int):
     post_dict, status = server_post(path, token, kwargs, "PUT")
     return post_dict, status
 
+def delete_post(token:str, pk:int) -> (dict[str, Any], int):
+    path = f'post/{pk}'
+    result, status = server_post(path, token, method="DELETE")
+    return result, status
