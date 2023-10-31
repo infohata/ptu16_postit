@@ -80,15 +80,15 @@ def get_posts() -> list[Post]:
 
 def like_post(post_id:int, token:str) -> (dict[str, int], int):
     path = f'post/{post_id}/like'
-    like, status = server_post(path, token)
+    like_dict, status = server_post(path, token)
     if status == 400:
-        like, status = server_post(path, token, method="DELETE")
-    return like, status
+        like_dict, status = server_post(path, token, method="DELETE")
+    return like_dict, status
 
 def new_post(token:str, **kwargs) -> (dict[str, Any], int):
     path = f'posts'
-    new_post, status = server_post(path, token, kwargs)
-    return new_post, status
+    post_dict, status = server_post(path, token, kwargs)
+    return post_dict, status
 
 def update_post(token:str, pk:int, **kwargs) -> (dict[str, Any], int):
     pass

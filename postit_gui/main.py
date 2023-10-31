@@ -1,7 +1,27 @@
 import PySimpleGUI as sg
 import postit_api as api
+from typing import Any
 
-def post_window(main_window:sg.Window, api_token:str, post=api.Post) -> api.Post|None:
+def save_post(api_token:str, post:api.Post, values:dict[str, Any]) -> (api.Post, int):
+    if len(values['title']) >= 3 and len(values['body']) >= 10:
+        if post.id == 0:
+            post_dict, status = api.new_post(api_token, **values)
+        else:
+            post_dict, status = api.update_post(api_token, post.id, **values)
+        if status == 201:
+            post = api.Post(**post_dict)
+            sg.popup_auto_close('Posted. Thank you', auto_close_duration=2)            
+        else:
+            reasons = []
+            for name, value in post_dict.items():
+                reasons.append(f" - {name}: {value[0]}.")
+            reason = '\n'.join(reasons)
+            sg.popup_error(f'Error:\n{reason}')            
+    else:
+        sg.popup_error('You must write something more')
+    return post, status
+
+def post_window(main_window:sg.Window, api_token:str, post=api.Post()) -> api.Post|None:
     status = 0
     layout = [
         [sg.Text('Title:', size=(10, 1)),
@@ -18,25 +38,12 @@ def post_window(main_window:sg.Window, api_token:str, post=api.Post) -> api.Post
         if event == sg.WIN_CLOSED or event == '-CANCEL-':
             break
         if event == '-CONFIRM-POST-':
-            if len(values['title']) >= 3 and len(values['body']) >= 10:
-                if post.id == 0:
-                    post, status = api.new_post(api_token, **values)
-                else:
-                    post, values = api.update_post(api_token, post.id, **values)
-                if status == 201:
-                    sg.popup_auto_close('Posted. Thank you', auto_close_duration=2)
-                    break
-                else:
-                    reasons = []
-                    for name, value in post.items():
-                        reasons.append(f" - {name}: {value[0]}.")
-                    reason = '\n'.join(reasons)
-                    sg.popup_error(f'Error:\n{reason}')            
-            else:
-                sg.popup_error('You must write something more')
+            post, status = save_post(api_token, post, values)
+            if status == 201:
+                break
     main_window.un_hide()
     window.close()
-    if status == 200 or hasattr(post, 'id') and post.id != 0:
+    if status == 201 or hasattr(post, 'id') and post.id != 0:
         return post
 
 def handle_new_post(window:sg.Window, api_token:str):
